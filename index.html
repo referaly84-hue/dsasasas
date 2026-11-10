@@ -4372,7 +4372,11 @@ async function pgClub(app) {
           <b>${e(r.clubName)} — ${e(r.opponentName)}</b>
           <span class="tag" style="background:${(stT[r.status] || stT.pending)[1]};font-weight:700">${(stT[r.status] || stT.pending)[0]}</span>
         </div>
-        <div class="muted small" style="margin:4px 0">📅 ${e(r.date)} ${e(r.time)} · ${e(r.venueText)}${r.venue === 'neutral' ? ` (${e(r.stadium)}${r.city ? ', ' + e(r.city) : ''})` : ''} · 💶 <b>${e(r.formattedBudget)}</b></div>
+        <div class="muted small" style="margin:4px 0">
+          🎮 <b>Игровое:</b> ${e(r.gameDate || r.date)} ${e(r.gameTime || r.time)} · 
+          ⏰ <b>Настоящее:</b> ${e(r.realDate || r.date)} ${e(r.realTime || r.time || '19:00')} МСК · 
+          ${e(r.venueText)}${r.venue === 'neutral' ? ` (${e(r.stadium)}${r.city ? ', ' + e(r.city) : ''})` : ''} · 💶 <b>${e(r.formattedBudget)}</b>
+        </div>
         <div class="small">Условия: ${e(r.conditions)}</div>
         <div class="muted small" style="margin-top:4px">Админ: ${appr(r.adminApproval)}${r.needOpponentApproval ? ` · «${e(r.opponentName)}»: ${appr(r.opponentApproval)}` : ` · ${e(r.opponentCompName)}: решает только админ`}</div>
         ${r.rejectReason && r.status !== 'approved' ? `<div class="small" style="color:#991b1b;margin-top:4px">${e(r.rejectReason)}</div>` : ''}
@@ -4384,7 +4388,12 @@ async function pgClub(app) {
         <p class="muted small" style="margin:4px 0 0">Клубы РПЛ приглашают вас сыграть в паузу на сборные. Матч состоится, если согласятся и вы, и администратор.</p>
         ${fr.incoming.length ? fr.incoming.map(r => `
           <div class="panel" style="margin-top:10px;border:1.5px solid #bbf7d0;background:#fafdfb">
-            <b>${e(r.clubName)}</b> зовёт вас на матч · 📅 ${e(r.date)} ${e(r.time)} · ${e(r.venueText)}${r.venue === 'neutral' ? ` (${e(r.stadium)}${r.city ? ', ' + e(r.city) : ''})` : ''}
+            <b>${e(r.clubName)}</b> зовёт вас на товарищеский матч
+            <div class="small" style="margin:4px 0">
+              🎮 <b>Игровое время:</b> ${e(r.gameDate || r.date)} ${e(r.gameTime || r.time)} · 
+              ⏰ <b>Настоящее время:</b> ${e(r.realDate || r.date)} ${e(r.realTime || r.time || '19:00')} МСК · 
+              ${e(r.venueText)}${r.venue === 'neutral' ? ` (${e(r.stadium)}${r.city ? ', ' + e(r.city) : ''})` : ''}
+            </div>
             <div class="small" style="margin:4px 0">💶 Бюджет матча: <b>${e(r.formattedBudget)}</b> (получит ваш клуб)</div>
             <div class="small">Условия: ${e(r.conditions)}</div>
             <div class="row" style="gap:8px;margin-top:8px">
@@ -4396,27 +4405,53 @@ async function pgClub(app) {
       <div class="panel" style="margin-top:12px">
         <h3 style="margin:0 0 6px">Предложить товарищеский матч</h3>
         ${fr.breaks.length ? `
-        <div class="muted small" style="margin-bottom:8px">Бюджет клуба: <b>${e(c.formattedBudget)}</b>. Бюджет матча спишется после всех согласий. Даты — только в паузы на сборные.</div>
+        <div class="muted small" style="margin-bottom:10px">Бюджет клуба: <b>${e(c.formattedBudget)}</b>. Бюджет матча спишется после всех согласий. Выберите соперника, место, игровое время в сетке сезона и настоящее время трансляции.</div>
+        
         <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
-          <label class="small">Соперник<br><select id="fr_opp" style="min-width:230px"><option value="">— выберите команду —</option>
+          <label class="small" style="flex:2;min-width:220px">Соперник<br><select id="fr_opp" style="width:100%"><option value="">— выберите команду —</option>
             ${Object.keys(groups).map(g => `<optgroup label="${e(g)}">${groups[g].map(t => `<option value="${t.id}" data-comp="${e(t.comp)}">${e(t.name)}</option>`).join('')}</optgroup>`).join('')}
           </select></label>
-          <label class="small">Место<br><select id="fr_venue"><option value="home">У нас дома</option><option value="away">В гостях</option><option value="neutral">Нейтральное поле</option></select></label>
-          <label class="small">Пауза<br><select id="fr_break">${fr.breaks.map(b => `<option value="${b.start}|${b.end}">${e(b.name)} (${e(b.start)} — ${e(b.end)})</option>`).join('')}</select></label>
-          <label class="small">Дата<br><input type="date" id="fr_date"></label>
-          <label class="small">Время<br><input type="time" id="fr_time" value="19:00"></label>
+          <label class="small" style="flex:1;min-width:160px">Место проведения<br><select id="fr_venue" style="width:100%"><option value="home">У нас дома</option><option value="away">В гостях</option><option value="neutral">Нейтральное поле</option></select></label>
         </div>
+
         <div id="fr_neutral" class="row" style="gap:10px;margin-top:8px;display:none">
-          <label class="small">Стадион<br><input id="fr_nst" maxlength="80" placeholder="Название стадиона"></label>
-          <label class="small">Город<br><input id="fr_nct" maxlength="60" placeholder="Город"></label>
+          <label class="small" style="flex:1">Стадион<br><input id="fr_nst" maxlength="80" placeholder="Название стадиона"></label>
+          <label class="small" style="flex:1">Город<br><input id="fr_nct" maxlength="60" placeholder="Город"></label>
         </div>
-        <label class="small" style="display:block;margin-top:8px">Условия матча<br><textarea id="fr_cond" rows="2" maxlength="500" style="width:100%;max-width:560px" placeholder="Например: 2 тайма по 45 минут, до 6 замен"></textarea></label>
+
+        <div style="background:var(--soft);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:10px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px">🎮 1. Игровое время матча (в календаре сезона)</div>
+          <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <label class="small" style="flex:2;min-width:200px">Официальная пауза<br><select id="fr_break" style="width:100%">${fr.breaks.map(b => `<option value="${b.start}|${b.end}">${e(b.name)} (${e(b.start)} — ${e(b.end)})</option>`).join('')}</select></label>
+            <label class="small" style="flex:1;min-width:140px">Игровая дата<br><input type="date" id="fr_date" style="width:100%"></label>
+            <label class="small" style="width:110px">Игровое время<br><input type="time" id="fr_time" value="15:00" style="width:100%"></label>
+          </div>
+          <div class="muted small" style="margin-top:4px">Виртуальная дата матча в календаре, когда игра происходит по сюжету сезона.</div>
+        </div>
+
+        <div style="background:var(--soft);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:10px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px">⏰ 2. Настоящее время матча (по МСК)</div>
+          <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <label class="small" style="flex:1;min-width:160px">Реальная дата (МСК)<br><input type="date" id="fr_real_date" style="width:100%"></label>
+            <label class="small" style="width:120px">Реальное время (МСК)<br><input type="time" id="fr_real_time" value="19:00" style="width:100%"></label>
+            <div class="row" style="gap:4px;flex-wrap:wrap">
+              <button type="button" class="btn sm alt" data-fr-rt="13:00">13:00</button>
+              <button type="button" class="btn sm alt" data-fr-rt="15:00">15:00</button>
+              <button type="button" class="btn sm alt" data-fr-rt="17:00">17:00</button>
+              <button type="button" class="btn sm alt" data-fr-rt="19:00">19:00</button>
+              <button type="button" class="btn sm alt" data-fr-rt="21:00">21:00</button>
+            </div>
+          </div>
+          <div class="muted small" style="margin-top:4px">Реальное московское время проведения матча или стрима трансляции.</div>
+        </div>
+
+        <label class="small" style="display:block;margin-top:10px">Условия матча<br><textarea id="fr_cond" rows="2" maxlength="500" style="width:100%;max-width:560px" placeholder="Например: 2 тайма по 45 минут, до 6 замен, смешанный состав"></textarea></label>
         <div class="row" style="gap:8px;margin-top:8px;align-items:flex-end;flex-wrap:wrap">
           <label class="small">Бюджет матча, €<br><input type="number" id="fr_budget" min="1" step="10000" placeholder="500000"></label>
-          <button class="btn sm" data-fr-b="250000">250 тыс.</button><button class="btn sm" data-fr-b="500000">500 тыс.</button><button class="btn sm" data-fr-b="1000000">1 млн</button>
+          <button type="button" class="btn sm" data-fr-b="250000">250 тыс.</button><button type="button" class="btn sm" data-fr-b="500000">500 тыс.</button><button type="button" class="btn sm" data-fr-b="1000000">1 млн</button>
         </div>
         <div id="fr_route" class="muted small" style="margin-top:8px">Выберите соперника — покажу, кто должен согласовать матч.</div>
-        <button class="btn" id="fr_send" style="margin-top:8px">Подать заявку</button>` : '<div class="muted small">Ближайших пауз на сборные в календаре нет.</div>'}
+        <button class="btn" id="fr_send" style="margin-top:10px">Подать заявку</button>` : '<div class="muted small">Ближайших пауз на сборные в календаре нет.</div>'}
       </div>
       <div class="panel" style="margin-top:12px">
         <h3 style="margin:0">Мои заявки</h3>
@@ -4427,7 +4462,18 @@ async function pgClub(app) {
     cb.querySelectorAll('[data-fr-no]').forEach(b => b.onclick = async () => { const r = await act(() => api('/club/friendly/respond', withT({ requestId: b.dataset.frNo, action: 'reject' })), 'Приглашение отклонено'); if (r) pgClub(app); });
     cb.querySelectorAll('[data-fr-cancel]').forEach(b => b.onclick = async () => { const r = await act(() => api('/club/friendly/respond', withT({ requestId: b.dataset.frCancel, action: 'cancel' })), 'Заявка отозвана'); if (r) pgClub(app); });
     if ($('#fr_send')) {
-      const syncBreak = () => { const [a, z] = $('#fr_break').value.split('|'); const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' }); $('#fr_date').min = a > today ? a : today; $('#fr_date').max = z; if (!$('#fr_date').value || $('#fr_date').value < $('#fr_date').min || $('#fr_date').value > z) $('#fr_date').value = $('#fr_date').min; };
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
+      if ($('#fr_real_date') && !$('#fr_real_date').value) {
+        $('#fr_real_date').value = today;
+        $('#fr_real_date').min = today;
+      }
+      cb.querySelectorAll('[data-fr-rt]').forEach(b => b.onclick = () => { $('#fr_real_time').value = b.dataset.frRt; });
+      const syncBreak = () => {
+        const [a, z] = $('#fr_break').value.split('|');
+        $('#fr_date').min = a;
+        $('#fr_date').max = z;
+        if (!$('#fr_date').value || $('#fr_date').value < a || $('#fr_date').value > z) $('#fr_date').value = a;
+      };
       $('#fr_break').onchange = syncBreak; syncBreak();
       $('#fr_venue').onchange = () => { $('#fr_neutral').style.display = $('#fr_venue').value === 'neutral' ? 'flex' : 'none'; };
       $('#fr_opp').onchange = () => {
@@ -4436,7 +4482,20 @@ async function pgClub(app) {
       };
       cb.querySelectorAll('[data-fr-b]').forEach(b => b.onclick = () => { $('#fr_budget').value = b.dataset.frB; });
       $('#fr_send').onclick = async () => {
-        const r = await act(() => api('/club/friendly/request', withT({ opponentId: $('#fr_opp').value, venue: $('#fr_venue').value, neutralStadium: $('#fr_nst').value, neutralCity: $('#fr_nct').value, date: $('#fr_date').value, time: $('#fr_time').value, conditions: $('#fr_cond').value, budget: +$('#fr_budget').value })), 'Заявка отправлена');
+        const r = await act(() => api('/club/friendly/request', withT({
+          opponentId: $('#fr_opp').value,
+          venue: $('#fr_venue').value,
+          neutralStadium: $('#fr_nst').value,
+          neutralCity: $('#fr_nct').value,
+          gameDate: $('#fr_date').value,
+          gameTime: $('#fr_time').value,
+          realDate: $('#fr_real_date').value,
+          realTime: $('#fr_real_time').value,
+          date: $('#fr_date').value,
+          time: $('#fr_time').value,
+          conditions: $('#fr_cond').value,
+          budget: +$('#fr_budget').value
+        })), 'Заявка отправлена');
         if (r) pgClub(app);
       };
     }
@@ -6557,7 +6616,14 @@ async function pgAdmin(app) {
     const fd = await api('/admin/friendly-requests');
     const stT = { approved: '✅ Матч назначен', rejected: '❌ Отклонена', cancelled: '↩ Отозвана', expired: '⌛ Истекла' };
     const appr = (v) => v === 'approved' ? '✅' : v === 'rejected' ? '❌' : v === 'not_required' ? '—' : '⏳';
-    const line = (r) => `<b>${e(r.clubName)} — ${e(r.opponentName)}</b> <span class="muted small">(${e(r.opponentCompName)})</span><div class="small">📅 ${e(r.date)} ${e(r.time)} · ${e(r.venueText)}${r.venue === 'neutral' ? ` (${e(r.stadium)}${r.city ? ', ' + e(r.city) : ''})` : ''} · 💶 <b>${e(r.formattedBudget)}</b></div><div class="small">Условия: ${e(r.conditions)}</div><div class="muted small">Админ: ${appr(r.adminApproval)} · Клуб-соперник: ${r.needOpponentApproval ? appr(r.opponentApproval) : 'не требуется (не РПЛ)'}</div>`;
+    const line = (r) => `<b>${e(r.clubName)} — ${e(r.opponentName)}</b> <span class="muted small">(${e(r.opponentCompName)})</span>
+<div class="small" style="margin:4px 0">
+  🎮 <b>Игровое:</b> ${e(r.gameDate || r.date)} ${e(r.gameTime || r.time)} · 
+  ⏰ <b>Настоящее:</b> ${e(r.realDate || r.date)} ${e(r.realTime || r.time || '19:00')} МСК · 
+  ${e(r.venueText)}${r.venue === 'neutral' ? ` (${e(r.stadium)}${r.city ? ', ' + e(r.city) : ''})` : ''} · 💶 <b>${e(r.formattedBudget)}</b>
+</div>
+<div class="small">Условия: ${e(r.conditions)}</div>
+<div class="muted small">Админ: ${appr(r.adminApproval)} · Клуб-соперник: ${r.needOpponentApproval ? appr(r.opponentApproval) : 'не требуется (не РПЛ)'}</div>`;
     ab.innerHTML = `
       <div class="panel"><h3 style="margin:0">Заявки на товарищеские матчи (${fd.pending.length})</h3>
         <p class="muted small">Паузы на сборные: ${fd.breaks.map(b => e(b.start) + ' — ' + e(b.end)).join('; ') || 'нет'}</p>
@@ -7307,13 +7373,21 @@ async function pgNational(app) {
     return `<div style="display:grid;gap:8px">
       ${matches.map(m => {
         const oppLogo = teamLogo(m.opponent);
+        const gDate = m.gameDate || m.date;
+        const gTime = m.gameTime || m.time || '19:00';
+        const rDate = m.realDate || m.date;
+        const rTime = m.realTime || m.time || '19:00';
         return `<div class="row sp" style="padding:10px 14px;background:var(--soft);border-radius:8px">
         <div class="row" style="gap:12px;align-items:center;flex-wrap:wrap">
-          <span class="small muted">${fmtD(m.date)} (${fmtDayOfWeek(m.date)}) · ${e(m.time)}</span>
           <div style="display:flex;align-items:center;gap:8px">
             <img src="${m.home ? rusLogo : (oppLogo || rusLogo)}" alt="" class="t-logo" style="width:24px;height:24px;object-fit:contain"/>
             <b>${m.home ? `Россия — ${e(m.opponent)}` : `${e(m.opponent)} — Россия`}</b>
             <img src="${m.home ? (oppLogo || rusLogo) : rusLogo}" alt="" class="t-logo" style="width:24px;height:24px;object-fit:contain"/>
+          </div>
+          <div class="small muted" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <span>🎮 Игровое: <b>${fmtD(gDate)} (${fmtDayOfWeek(gDate)}) ${e(gTime)}</b></span>
+            <span>·</span>
+            <span>⏰ Настоящее: <b>${fmtD(rDate)} ${e(rTime)} МСК</b></span>
           </div>
         </div>
         <div class="row" style="gap:8px">
@@ -7364,15 +7438,15 @@ async function pgNational(app) {
           <button class="btn alt" id="nt_add_btn">Добавить игрока в состав</button>
         </div>
         <div style="margin-bottom:6px;font-size:12px;color:var(--muted)">
-          ℹ️ <b>Товарищеские матчи сборной:</b> даты строго ограничены официальными международными окнами ФИФА
+          ℹ️ <b>Товарищеские матчи сборной:</b> выберите соперника, игровое время в окне ФИФА и настоящее время матча (МСК)
         </div>
-        <div class="row" style="gap:8px;flex-wrap:wrap">
-          <input id="nt_opp" placeholder="Соперник (например: Сербия, Камерун)" style="flex:2;min-width:180px">
-          <select id="nt_date" style="flex:2;min-width:220px">
-            ${breakDateOptions || '<option value="2026-11-14">2026-11-14</option>'}
-          </select>
-          <input id="nt_time" value="19:00" style="width:80px">
-          <button class="btn alt" id="nt_add_match">Добавить товарищеский матч</button>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <label class="small" style="flex:2;min-width:180px">Соперник<br><input id="nt_opp" placeholder="Соперник (например: Сербия, Камерун)" style="width:100%"></label>
+          <label class="small" style="flex:2;min-width:200px">🎮 Игровая дата (пауза ФИФА)<br><select id="nt_date" style="width:100%">${breakDateOptions || '<option value="2026-11-14">2026-11-14</option>'}</select></label>
+          <label class="small" style="width:85px">🎮 Время<br><input id="nt_time" value="19:00" style="width:100%"></label>
+          <label class="small" style="flex:1;min-width:140px">⏰ Настоящая дата<br><input type="date" id="nt_real_date" style="width:100%"></label>
+          <label class="small" style="width:85px">⏰ Время<br><input id="nt_real_time" value="19:00" style="width:100%"></label>
+          <button class="btn alt" id="nt_add_match" style="margin-bottom:0">Добавить матч</button>
         </div>
       </div>` : ''}`;
   } else {
@@ -7428,8 +7502,21 @@ async function pgNational(app) {
     const r = await act(() => api('/admin/national/squad', { action: 'add', pid: $('#nt_add_pid').value }), 'Игрок добавлен в сборную');
     if (r) pgNational(app);
   };
+  if ($('#nt_real_date') && !$('#nt_real_date').value) {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
+    $('#nt_real_date').value = today;
+  }
   if ($('#nt_add_match')) $('#nt_add_match').onclick = async () => {
-    const r = await act(() => api('/admin/national/match', { opponent: $('#nt_opp').value, date: $('#nt_date').value, time: $('#nt_time').value, home: true }), 'Товарищеский матч добавлен');
+    const r = await act(() => api('/admin/national/match', {
+      opponent: $('#nt_opp').value,
+      gameDate: $('#nt_date').value,
+      gameTime: $('#nt_time').value,
+      realDate: $('#nt_real_date').value,
+      realTime: $('#nt_real_time').value,
+      date: $('#nt_date').value,
+      time: $('#nt_time').value,
+      home: true
+    }), 'Товарищеский матч добавлен');
     if (r) pgNational(app);
   };
   app.querySelectorAll('[data-nt-del-match]').forEach(b => b.onclick = async () => {

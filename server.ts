@@ -3431,6 +3431,8 @@ function ensureSeasonFriendlies(y0?: number) {
         time: p.time,
         gameDate: p.date,
         gameTime: p.time,
+        realDate: p.date,
+        realTime: p.time || '19:00',
         home: tHome.id,
         away: tAway.id,
         status: 'scheduled',
@@ -7968,15 +7970,13 @@ const fmtEuro = (n: number) => '€' + Math.round(Number(n) || 0).toLocaleString
 const cleanTxt = (v: any, max: number) => String(v ?? '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 function friendlyBreaks() {
-  return (db.internationalBreaks || DEFAULT_INTERNATIONAL_BREAKS).filter((b: any) => String(b.id).startsWith('ib_'));
+  return (db.internationalBreaks || DEFAULT_INTERNATIONAL_BREAKS).filter((b: any) => String(b.id).startsWith('ib_') || String(b.id).startsWith('winter_break'));
 }
 function friendlyBreakFor(date: string) {
   return friendlyBreaks().find((b: any) => date >= b.start && date <= b.end) || null;
 }
 function upcomingFriendlyBreaks() {
-  const today = todayMsk();
   return friendlyBreaks()
-    .filter((b: any) => b.end >= today)
     .sort((a: any, b: any) => a.start.localeCompare(b.start))
     .map((b: any) => ({ id: b.id, name: b.name, start: b.start, end: b.end }));
 }
@@ -7992,9 +7992,10 @@ function expireFriendlies(): boolean {
   const today = todayMsk();
   let ch = false;
   for (const r of (db.friendlyRequests ||= [])) {
-    if (r.status === 'pending' && r.date < today) {
+    const checkDate = r.realDate || r.date;
+    if (r.status === 'pending' && checkDate < today) {
       r.status = 'expired';
-      r.rejectReason = 'Дата матча прошла, а заявка не была полностью согласована';
+      r.rejectReason = 'Настоящая дата матча прошла, а заявка не была полностью согласована';
       r.resolvedAt = new Date().toISOString();
       ch = true;
     }
@@ -8018,6 +8019,10 @@ function friendlyPlace(r: any) {
 const pubFriendly = (r: any) => {
   const B = team(r.opponentId);
   const place = friendlyPlace(r);
+  const gameDate = r.gameDate || r.date;
+  const gameTime = r.gameTime || r.time || '15:00';
+  const realDate = r.realDate || r.date;
+  const realTime = r.realTime || r.time || '19:00';
   return {
     id: r.id,
     clubId: r.clubId, clubName: tn(r.clubId), clubLogo: teamLogo(r.clubId), clubComp: team(r.clubId)?.comp || '',
@@ -8026,8 +8031,10 @@ const pubFriendly = (r: any) => {
     venue: r.venue,
     venueText: r.venue === 'home' ? `У хозяев: ${tn(r.clubId)}` : r.venue === 'away' ? `В гостях: ${tn(r.opponentId)}` : `Нейтральное поле`,
     stadium: place.stadium, city: place.city,
-    date: r.date, time: r.time,
-    breakName: friendlyBreakFor(r.date)?.name || '',
+    date: gameDate, time: gameTime,
+    gameDate, gameTime,
+    realDate, realTime,
+    breakName: friendlyBreakFor(gameDate)?.name || '',
     conditions: r.conditions,
     budget: r.budget, formattedBudget: fmtEuro(r.budget),
     needOpponentApproval: !!r.needOpponentApproval,
@@ -8055,9 +8062,14 @@ function tryFinalizeFriendly(r: any): { executed: boolean; error?: string } {
   };
   const A = team(r.clubId), B = team(r.opponentId);
   if (!A || !B) return reject('Один из клубов не найден');
-  if (r.date < todayMsk()) return reject('Дата матча уже прошла');
-  if (!friendlyBreakFor(r.date)) return reject('Дата не попадает в паузу на сборные');
-  const clash = friendlyConflict(A.id, r.date) || friendlyConflict(B.id, r.date);
+  const gameDate = r.gameDate || r.date;
+  const gameTime = r.gameTime || r.time || '15:00';
+  const realDate = r.realDate || r.date;
+  const realTime = r.realTime || r.time || '19:00';
+
+  if (realDate < todayMsk()) return reject('Настоящая дата матча уже прошла');
+  if (!friendlyBreakFor(gameDate)) return reject('Игровая дата не попадает в официальную паузу на сборные');
+  const clash = friendlyConflict(A.id, gameDate) || friendlyConflict(B.id, gameDate);
   if (clash) return reject(clash);
 
   ensureInitialBudgets();
@@ -8071,7 +8083,7 @@ function tryFinalizeFriendly(r: any): { executed: boolean; error?: string } {
   db.budgetHistory.push({
     id: uid(), teamId: A.id, teamName: A.name, amount: -budget, prevBudget: prevA, newBudget: A.budget,
     type: 'friendly_match', typeLabel: 'Товарищеский матч',
-    description: `Товарищеский матч с «${B.name}» (${r.date}): бюджет матча -${fmtEuro(budget)}`,
+    description: `Товарищеский матч с «${B.name}» (игровая дата: ${gameDate}, реальная: ${realDate}): бюджет матча -${fmtEuro(budget)}`,
     date: nowIso, byAdmin: false
   });
   if (FRIENDLY_PAY_OPPONENT) {
@@ -8080,7 +8092,7 @@ function tryFinalizeFriendly(r: any): { executed: boolean; error?: string } {
     db.budgetHistory.push({
       id: uid(), teamId: B.id, teamName: B.name, amount: budget, prevBudget: prevB, newBudget: B.budget,
       type: 'friendly_match', typeLabel: 'Товарищеский матч',
-      description: `Товарищеский матч с «${A.name}» (${r.date}): получен бюджет матча +${fmtEuro(budget)}`,
+      description: `Товарищеский матч с «${A.name}» (игровая дата: ${gameDate}, реальная: ${realDate}): получен бюджет матча +${fmtEuro(budget)}`,
       date: nowIso, byAdmin: false
     });
   }
@@ -8104,8 +8116,9 @@ function tryFinalizeFriendly(r: any): { executed: boolean; error?: string } {
     round: 1,
     label: 'Товарищеский матч',
     note: r.conditions,
-    date: r.date, time: r.time,
-    gameDate: r.date, gameTime: r.time,
+    date: gameDate, time: gameTime,
+    gameDate: gameDate, gameTime: gameTime,
+    realDate: realDate, realTime: realTime,
     home: place.home, away: place.away,
     status: 'scheduled', hg: null, ag: null, pos: 0,
     friendlyId: r.id,
@@ -8124,7 +8137,7 @@ function tryFinalizeFriendly(r: any): { executed: boolean; error?: string } {
   r.resolvedAt = nowIso;
   invalidateAgg();
   try {
-    tg(`🤝 <b>Товарищеский матч согласован</b>\n«${esc(tn(place.home))}» — «${esc(tn(place.away))}»\n📅 ${esc(r.date)} ${esc(r.time)} · ${esc(place.stadium)}\n💶 Бюджет матча: <b>${esc(fmtEuro(budget))}</b>\n<i>${esc(r.conditions)}</i>`);
+    tg(`🤝 <b>Товарищеский матч согласован</b>\n«${esc(tn(place.home))}» — «${esc(tn(place.away))}»\n🎮 Игровое: <b>${esc(gameDate)} ${esc(gameTime)}</b>\n⏰ Настоящее: <b>${esc(realDate)} ${esc(realTime)} МСК</b>\n🏟 ${esc(place.stadium)}\n💶 Бюджет матча: <b>${esc(fmtEuro(budget))}</b>\n<i>${esc(r.conditions)}</i>`);
   } catch { /* telegram не критичен */ }
   return { executed: true };
 }
@@ -8155,16 +8168,24 @@ app.post('/api/club/friendly/request', needClub, (req: any, res) => {
   const neutralCity = cleanTxt(b.neutralCity, 60);
   if (venue === 'neutral' && !neutralStadium && !neutralCity) return fail(res, 'Для нейтрального поля укажите стадион или город');
 
-  const date = String(b.date || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(res, 'Укажите дату матча');
-  if (date < todayMsk()) return fail(res, 'Эта дата уже прошла');
-  if (!friendlyBreakFor(date)) {
-    const w = upcomingFriendlyBreaks().map((x: any) => `${x.start} — ${x.end}`).join('; ');
-    return fail(res, `Товарищеские матчи проводятся только в паузы на сборные${w ? ': ' + w : ''}`);
+  // 1) Игровое время (виртуальный календарь)
+  const gameDate = String(b.gameDate || b.date || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(gameDate)) return fail(res, 'Укажите игровую дату матча');
+  if (!friendlyBreakFor(gameDate)) {
+    const w = upcomingFriendlyBreaks().map((x: any) => `${x.start} — ${x.end} (${x.name})`).join('; ');
+    return fail(res, `Игровая дата должна попадать в официальную паузу на сборные${w ? ': ' + w : ''}`);
   }
-  let time = String(b.time || '19:00').trim();
-  if (!/^\d{1,2}:\d{2}$/.test(time)) return fail(res, 'Некорректное время матча');
-  if (time.length === 4) time = '0' + time;
+  let gameTime = String(b.gameTime || b.time || '15:00').trim();
+  if (!/^\d{1,2}:\d{2}$/.test(gameTime)) return fail(res, 'Некорректное игровое время матча');
+  if (gameTime.length === 4) gameTime = '0' + gameTime;
+
+  // 2) Настоящее время (реальное время трансляции / матча по МСК)
+  const realDate = String(b.realDate || todayMsk()).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(realDate)) return fail(res, 'Укажите настоящее (реальное) число матча');
+  if (realDate < todayMsk()) return fail(res, 'Реальная дата проведения матча не может быть в прошлом');
+  let realTime = String(b.realTime || '19:00').trim();
+  if (!/^\d{1,2}:\d{2}$/.test(realTime)) return fail(res, 'Некорректное настоящее (реальное) время матча');
+  if (realTime.length === 4) realTime = '0' + realTime;
 
   const conditions = cleanTxt(b.conditions, 500);
   if (conditions.length < 3) return fail(res, 'Пропишите условия матча');
@@ -8174,10 +8195,10 @@ app.post('/api/club/friendly/request', needClub, (req: any, res) => {
   ensureInitialBudgets();
   if ((A.budget || 0) < budget) return fail(res, `Недостаточно средств: в бюджете клуба ${fmtEuro(A.budget || 0)}, а бюджет матча ${fmtEuro(budget)}`);
 
-  if ((db.friendlyRequests ||= []).some((r: any) => r.status === 'pending' && r.clubId === A.id && r.opponentId === B.id && r.date === date)) {
-    return fail(res, 'Такая заявка на эту дату уже подана и ждёт решения');
+  if ((db.friendlyRequests ||= []).some((r: any) => r.status === 'pending' && r.clubId === A.id && r.opponentId === B.id && (r.gameDate || r.date) === gameDate)) {
+    return fail(res, 'Такая заявка на эту игровую дату уже подана и ждёт решения');
   }
-  const clash = friendlyConflict(A.id, date) || friendlyConflict(B.id, date);
+  const clash = friendlyConflict(A.id, gameDate) || friendlyConflict(B.id, gameDate);
   if (clash) return fail(res, clash);
 
   const needClub = friendlyNeedsClub(B);
@@ -8185,7 +8206,10 @@ app.post('/api/club/friendly/request', needClub, (req: any, res) => {
     id: 'fr_' + uid(),
     clubId: A.id, opponentId: B.id,
     venue, neutralStadium, neutralCity,
-    date, time, conditions, budget,
+    date: gameDate, time: gameTime,
+    gameDate, gameTime,
+    realDate, realTime,
+    conditions, budget,
     needOpponentApproval: needClub,
     opponentApproval: needClub ? 'pending' : 'not_required',
     adminApproval: 'pending',
@@ -8196,7 +8220,7 @@ app.post('/api/club/friendly/request', needClub, (req: any, res) => {
   db.friendlyRequests.unshift(r);
   save();
   try {
-    tg(`🤝 <b>Заявка на товарищеский матч</b>\n«${esc(A.name)}» приглашает «${esc(B.name)}»\n📅 ${esc(date)} ${esc(time)} · ${esc(pubFriendly(r).venueText)}\n💶 Бюджет: <b>${esc(fmtEuro(budget))}</b>\n<i>${esc(conditions)}</i>\n${needClub ? 'Нужны согласия клуба-соперника и администратора.' : 'Требуется решение администратора.'}`);
+    tg(`🤝 <b>Заявка на товарищеский матч</b>\n«${esc(A.name)}» приглашает «${esc(B.name)}»\n🎮 Игровое: <b>${esc(gameDate)} ${esc(gameTime)}</b>\n⏰ Настоящее: <b>${esc(realDate)} ${esc(realTime)} МСК</b>\n🏟 ${esc(pubFriendly(r).venueText)}\n💶 Бюджет: <b>${esc(fmtEuro(budget))}</b>\n<i>${esc(conditions)}</i>\n${needClub ? 'Нужны согласия клуба-соперника и администратора.' : 'Требуется решение администратора.'}`);
   } catch { /* telegram не критичен */ }
   res.json({
     ok: 1,
@@ -8466,6 +8490,10 @@ function enrichNationalBreak(brk: any) {
   }).filter(Boolean);
   const matches = (brk.matches || []).map((m: any) => ({
     ...m,
+    gameDate: m.gameDate || m.date,
+    gameTime: m.gameTime || m.time || '19:00',
+    realDate: m.realDate || m.date,
+    realTime: m.realTime || m.time || '19:00',
     russiaLogo: '/assets/aistudio/russia_russia-national-team.football-logos.cc_2a5e3ddc.svg',
     opponentLogo: teamLogo(m.opponent)
   }));
@@ -8559,19 +8587,28 @@ app.post('/api/admin/national/squad', admin, (req, res) => {
 
 app.post('/api/admin/national/match', admin, (req, res) => {
   const nt = ensureNationalTeam();
-  const { opponent, date, time, home } = req.body;
+  const { opponent, date, time, gameDate, gameTime, realDate, realTime, home } = req.body;
   if (!opponent) return fail(res, 'Укажите соперника');
-  if (!date) return fail(res, 'Укажите дату матча');
+  const gDate = String(gameDate || date || '').trim();
+  if (!gDate) return fail(res, 'Укажите игровую дату матча');
   const nationalBreaks = (db.internationalBreaks || DEFAULT_INTERNATIONAL_BREAKS).filter((b: any) => b.id.startsWith('ib_'));
-  const isValidDate = nationalBreaks.some((b: any) => date >= b.start && date <= b.end);
+  const isValidDate = nationalBreaks.some((b: any) => gDate >= b.start && gDate <= b.end);
   if (!isValidDate) return fail(res, 'Матч сборной может проводиться только в даты официальных пауз на сборные!');
+
+  const gTime = String(gameTime || time || '19:00').trim();
+  const rDate = String(realDate || todayMsk()).trim();
+  const rTime = String(realTime || '19:00').trim();
 
   nt.current.matches ||= [];
   nt.current.matches.push({
     id: uid(),
     opponent: String(opponent).trim(),
-    date: date,
-    time: time || '19:00',
+    date: gDate,
+    time: gTime,
+    gameDate: gDate,
+    gameTime: gTime,
+    realDate: rDate,
+    realTime: rTime,
     home: home !== false
   });
   save();
